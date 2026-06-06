@@ -17,46 +17,49 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 void *handleClient(void *);
 void broadcast(char *message, int sender);
 
-int main ()
-{   
+int main()
+{
     int server_fd, client_sock;
-    struct sockaddr_in server_addr, client_addr; 
+    struct sockaddr_in server_addr, client_addr;
     socklen_t addrlen = sizeof(client_addr);
 
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd < 0)
+    {
+        perror("socket");
+        exit(1);
+    }
+
+    int opt = 1;
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+    memset(&server_addr, 0, sizeof(server_addr));
 
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(PORT);
     server_addr.sin_addr.s_addr = INADDR_ANY;
 
-    int opt = 1;
-
-    setsockopt(server_fd,
-            SOL_SOCKET,
-            SO_REUSEADDR,
-            &opt,
-            sizeof(opt));
-
-    if(bind(server_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0)
+    if (bind(server_fd, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0)
     {
         perror("bind");
         exit(1);
     }
 
-    if (listen(server_fd, 5) < 0)
+    if (listen(server_fd, 10) < 0)
     {
-        perror("listn");
+        perror("listen");
         exit(1);
     }
 
-    printf("server is waiting...");
+    printf("Server is running...\n");
 
     while (1)
     {
         client_sock = accept(server_fd, (struct sockaddr*)&client_addr, &addrlen);
-        if(client_sock < 0){
-            perror("connect");
-            exit(1);
+        if (client_sock < 0)
+        {
+            perror("accept");
+            continue;
         }
 
         pthread_mutex_lock(&mutex);
@@ -72,18 +75,23 @@ int main ()
             pthread_create(&tid, NULL, handleClient, pclient);
             pthread_detach(tid);
         }
-        
+        else
+        {
+            close(client_sock);
+            printf("Max clients reached\n");
+        }
+
         pthread_mutex_unlock(&mutex);
     }
-    
-    close(server_fd);
 
+    close(server_fd);
     return 0;
 }
 
 void *handleClient(void *arg)
 {
     int client_sock = *(int *)arg;
+    free(arg);
 
     char buffer[BUFFER_SIZE];
 
@@ -97,7 +105,6 @@ void *handleClient(void *arg)
         }
 
         buffer[n] = '\0';
-        
         broadcast(buffer, client_sock);
     }
 
@@ -116,19 +123,19 @@ void *handleClient(void *arg)
     pthread_mutex_unlock(&mutex);
 
     close(client_sock);
-
-    free(arg);
-
     return NULL;
 }
 
-void broadcast(char* message, int sender)
+void broadcast(char *message, int sender)
 {
     pthread_mutex_lock(&mutex);
 
     for (int i = 0; i < client_count; i++)
     {
-        send(clients[i], message, strlen(message), 0);
+        if (clients[i] != sender)
+        {
+            send(clients[i], message, strlen(message), 0);
+        }
     }
 
     pthread_mutex_unlock(&mutex);
