@@ -17,15 +17,15 @@ void* handleClient(void *arg)
 
     while (1)
     {
-        int n = recv(client_fd, buffer, BUFFER_SIZE, 0);
+        int n = recv(client_fd, buffer, BUFFER_SIZE - 1, 0);
         if (n <= 0)
         {
-            printf("Client Deconected");
+            printf("Client Disconected");
             break;
         }
         buffer[n] = '\0';
 
-        printf("client %s\n", buffer);
+        printf("Client: %s\n", buffer);
 
         send(client_fd, buffer, strlen(buffer), 0);
     }
@@ -73,7 +73,7 @@ int main()
         addr_size = sizeof(client_addr);
 
         *client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &addr_size);
-        if (client_fd < 0)
+        if (*client_fd < 0)
         {
             perror("accept failed");
             free(client_fd);
